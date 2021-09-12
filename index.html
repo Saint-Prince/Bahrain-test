@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>
+            Save files and random images using loop
+        </title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+        <!-- External CSS -->
+        <style type="text/css" media="all">
+        *{ padding: 0px; margin: 0px; border:0px; }
+
+        #main{
+            text-align: center;
+            position: relative;
+        }
+
+        #cart{
+            margin-top: 1%;
+            height: 600px;
+            width: 600px;
+        }
+        </style>
+    </head>
+<body>
+    <div id = 'main'>
+        <canvas id='cart' height='600' width='600'></canvas>
+    </div>
+    <script type="text/javascript" charset="utf-8" src="streamSaver.js"></script>
+    <script type="text/javascript" charset="utf-8">
+        function exportCanvasAsPNG(id, fileName) {
+
+            var canvasElement = document.getElementById(id);
+
+            var MIME_TYPE = "image/png";
+
+            var imgURL = canvasElement.toDataURL(MIME_TYPE);
+
+            var dlLink = document.createElement('a');
+            dlLink.download = fileName;
+            dlLink.href = imgURL;
+            dlLink.dataset.downloadurl = [MIME_TYPE, dlLink.download, dlLink.href].join(':');
+
+            document.body.appendChild(dlLink);
+            dlLink.click();
+            document.body.removeChild(dlLink);
+        }
+        function hasCell(x, y) {
+            for (var i = 0, c; c = tris[i++];) {
+                if (c.x === x && c.y === y) return true;
+            }
+            return false;
+        }
+        function renderTri(t) {
+            var x = t.x * cw,                  // convert to abs. position
+                y = t.y * ch;
+            if (t.divide) {                    // create triangle
+                ctx.moveTo(x + cw, y);           // define common diagonal
+                ctx.lineTo(x, y + ch);
+                t.upper ? ctx.lineTo(x, y) : ctx.lineTo(x + cw, y + ch);
+            }
+            else {
+                ctx.rect(x, y, cw, ch);          // fill complete cell
+            }
+        }
+        function hasCircle(x, y) {
+            return grid[y * cells + x] === 1;
+        }
+
+
+        for (let j = 1; j < 101; j++) {
+            var canvas = document.querySelector("canvas"),
+                ctx = canvas.getContext("2d"),
+                w = canvas.width,
+                h = canvas.height,
+                cellsY = 14,                     // cells Y for triangles
+                cellsX = cellsY * 2,             // cells X times two to overlap skew
+                cw = w / cellsX * 2,             // cell width and height         
+                ch = h / cellsY,
+                toggle, cx = 0, cy,              // for circles
+                cells = 25,                      // cells for cirles + comp. (see below)
+                deltaY = 0.8660254037844386,     // = sqrt(3) * 0.5
+                deltaYI = 1 / deltaY,            // inverse deltaY
+                grid = new Uint8Array((cells * cells * deltaYI)|0), // circles "booleans"
+                i;
+
+            // Calc and Render Triangles ---
+
+            // main transform: skew
+            ctx.clearRect(0, 0, 600, 600);
+            ctx.setTransform(1, 0, 0.51, 1, -cellsX * cw * 0.5, 0);
+            ctx.fillStyle = "rgb(90, 146, 176)";
+
+            // fill random cells based on likely cover:
+            var cover = 0.67,                    // how much of total area to cover
+                biasDiv = 0.6,                   // bias for splitting cell
+                biasUpper = 0.5,                 // bias for which part to draw
+                count = cellsX * cellsY * cover, // coverage
+                tris = [],
+                x, y, d, u, overlap;             // generate cells
+
+            for (i = 0; i < count; i++) {
+            overlap = true;
+            while (overlap) { // if we have overlapping cells
+                x = (Math.random() * cellsX) | 0;
+                y = (Math.random() * cellsY) | 0;
+                overlap = hasCell(x, y);
+                if (!overlap) {
+                d = Math.random() < biasDiv;   // divide cell?
+                u = Math.random() < biasUpper; // if divided, use upper part?
+                tris.push({
+                    x: x,
+                    y: y,
+                    divide: d,
+                    upper: u
+                })
+                }
+            }
+            }
+
+            // render
+            for (i = 0; i < tris.length; i++) renderTri(tris[i]);
+            ctx.fill();  // fill all sub-paths
+
+
+            // Calc and Render Circles ---
+
+            cover = 0.5,                         // how much of total area to cover
+            count = Math.ceil(grid.length * cover); // coverage
+            cw = ch = w / cells;
+
+            ctx.setTransform(1,0,0,1,0,0);       // reset transforms
+            ctx.fillStyle = "rgb(32, 141, 83)";
+            ctx.globalCompositeOperation = "multiply";  // blend mode instead of alpha
+
+            if (ctx.globalCompositeOperation !== "multiply") ctx.globalAlpha = 0.5; // for IE
+
+            for (i = 0; i < count; i++) {
+            overlap = true;
+            while (overlap) {                  // if we have overlapping cells
+                x = (Math.random() * cells) | 0;           // x index
+                y = (Math.random() * cells * deltaYI) | 0; // calc y index + comp
+                overlap = hasCircle(x, y);                 // already has circle?
+                if (!overlap) {
+                grid[y * cells + x] = 1;                 // set "true"
+                }
+            }
+            }
+
+            // render
+            ctx.beginPath();
+            cy = ch * 0.5;                               // start on Y axis
+            for (y = 0; y < (cells * deltaYI)|0; y++) {  // iterate rows + comp.
+            toggle = !(y % 2);                         // toggle x offset
+            for (x = 0; x < cells; x++) {              // columns
+                if (grid[y * cells + x]) {               // has circle?
+                cx = x * cw + (toggle ? cw * 0.5 : 0); // calc x
+                ctx.moveTo(cx + cw * 0.5, cy);         // creat sub-path
+                ctx.arc(cx, cy, cw * 0.5, 0, 2 * Math.PI); // add arc
+                ctx.closePath();                       // close sub-path
+                }
+            }
+            cy += ch * deltaY;                         // add deltaY
+            }
+            ctx.fill();
+            exportCanvasAsPNG('cart', j+".png");
+        let today = new Date().toLocaleDateString();
+    
+            const fileStream = streamSaver.createWriteStream(j+'.txt')
+            new Response(today+'-'+j).body
+            .pipeTo(fileStream)
+//            .then(success, error)
+
+        }
+    </script>
+</body>
+</html>
